@@ -1,0 +1,59 @@
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+#include "driverlib/debug.h"
+#include "driverlib/pwm.h"
+#include "driverlib/pin_map.h"
+#include "inc/hw_gpio.h"
+#include "driverlib/rom.h"
+
+
+//======================= HAM MAIN  ============================//
+int main(void)
+{
+
+	float period;
+	float duty;
+	//Set tan so xung clock cho he thong la 40MHz
+SysCtlClockSet(SYSCTL_SYSDIV_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
+
+		//Cau hinh xung cho PWM la 20MHz
+//SysCtlPWMClockSet(SYSCTL_PWMDIV_2); // PWM clock = 20MHz --> (system clock = 40MHz /
+
+     //initial parameters to start the MPPT or lim-power operation
+period= SysCtlClockGet()/40000;
+duty = period*0.6;
+
+// Cho phep giao tiep ngoai vi
+SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM1);     // peripheral for the PWM function
+SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);   // peripheral for the general purpose port-F pins dedicated for the PWM
+
+//-----------------------Cau hinh cho PWM -------------------//
+
+// Configure PF2 Pin as PWM mode 1
+GPIOPinConfigure(GPIO_PF1_M1PWM5);
+GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_1);
+// Configure PWM1 with PWM-generator 3
+PWMGenConfigure(PWM1_BASE,PWM_GEN_2,PWM_GEN_MODE_DOWN|PWM_GEN_MODE_NO_SYNC);
+// Set the Period for 1 PWM cycle
+PWMGenPeriodSet(PWM1_BASE, PWM_GEN_2, period);
+// Set PWM duty
+//PWMPulseWidthSet(PWM1_BASE, PWM_OUT_6,duty);
+// Enable the PWM mode 1 and generator 2
+PWMGenEnable(PWM1_BASE, PWM_GEN_2);
+// Turn on the PWM Output pin
+//PWMOutputState(PWM1_BASE, PWM_OUT_6_BIT, true);
+
+//-------------------Infinite While Loop---------------//
+while (1)
+{
+PWMPulseWidthSet(PWM1_BASE, PWM_OUT_5, duty-1);// PWM execution command
+PWMOutputState(PWM1_BASE, PWM_OUT_5_BIT, true);
+
+}
+}
+
+

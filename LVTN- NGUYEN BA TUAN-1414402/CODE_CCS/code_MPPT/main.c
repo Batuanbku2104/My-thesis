@@ -1,0 +1,178 @@
+// CODE
+// Designed by: NGUYEN BA TUAN _BKU2014
+
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "driverlib/gpio.h"
+#include "driverlib/pin_map.h"
+#include "driverlib/pwm.h"
+#include "driverlib/adc.h"
+#include "utils/uartstdio.c"
+
+
+//--------------KHAI BAO NGOAI -----------------//
+
+void ADC();   // CHUC NANG CHUYEN DOI DIEN AP ADC
+void MPPT(); // CHUC NANG MPPT
+//void discrete(); //
+//-----------------------KHAI BAO BIEN TOAN CUC-----------------------//
+
+uint32_t ui32ADC0Value[1]; // BIEN ADC INPUT
+uint32_t ui32ADC1Value[1];
+float CH0data;
+float CH2data;
+float meas_voltage[2]; // BIEN LUU TRU GIA TRI DIEN AP TINH DUOC TU ADC
+float meas_crnt;      // BIEN LUU TRU GIA TRI DONG DIEN TINH DUOC TU ADC
+//float meas_pwr[1];
+//float pwr[2];
+float PV_pwr[2];
+float period = 500; // 20MHZ/500=40KHZ
+float duty = 250; // D=50%
+float count_adc = 0; // TAN SO LAY MAU CHO ADC
+float count_mppt = 0; // TAN SO LAY MAU CHO MPPT
+//float e_0 = 0.0042; // error value for discretization
+//float u_1 = -0.9958; // input value for discretization
+
+//======================= Main function ============================//
+
+int main(void)
+{
+// KHOI TAO BAN DAU
+
+duty = 250;
+SysCtlClockSet(SYSCTL_SYSDIV_5|SYSCTL_USE_PLL|SYSCTL_OSC_MAIN|SYSCTL_XTAL_16MHZ);
+SysCtlPWMClockSet(SYSCTL_PWMDIV_2);
+
+// KHOI TAO ADC0 (CHAN PE3) CHO VPV
+SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
+GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_3);
+ADCHardwareOversampleConfigure(ADC0_BASE, 64); // 8 MAU
+ADCSequenceConfigure(ADC0_BASE, 1, ADC_TRIGGER_PROCESSOR, 0);
+ADCSequenceStepConfigure(ADC0_BASE, 1, 0, ADC_CTL_CH0|ADC_CTL_IE|ADC_CTL_END);
+ADCIntClear(ADC0_BASE, 1);
+ADCSequenceEnable(ADC0_BASE, 1);
+ADCProcessorTrigger(ADC0_BASE, 0);
+
+// KHOI TAO ADC1 (CHAN PE1) CHO IPV
+SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC1);
+SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);
+GPIOPinTypeADC(GPIO_PORTE_BASE, GPIO_PIN_1);
+ADCHardwareOversampleConfigure(ADC1_BASE, 64); // 8 MAU
+ADCSequenceConfigure(ADC1_BASE, 1, ADC_TRIGGER_PROCESSOR, 0);
+ADCSequenceStepConfigure(ADC1_BASE, 1, 0, ADC_CTL_CH2|ADC_CTL_IE|ADC_CTL_END);
+ADCSequenceEnable(ADC1_BASE, 1);
+ADCIntClear(ADC1_BASE, 1);
+//ADCIntEnable(ADC1_BASE, 0);
+//ADCProcessorTrigger(ADC1_BASE, 0);
+
+// KHOI TAO M1PW5 ( CHAN PF1), GENERATOR 2
+SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM1);
+SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
+GPIOPinTypePWM(GPIO_PORTF_BASE, GPIO_PIN_1);
+GPIOPinConfigure(GPIO_PF1_M1PWM5);
+PWMGenConfigure(PWM1_BASE,PWM_GEN_2,PWM_GEN_MODE_DOWN|PWM_GEN_MODE_NO_SYNC);
+PWMGenPeriodSet(PWM1_BASE, PWM_GEN_2, period);
+PWMPulseWidthSet(PWM1_BASE, PWM_OUT_5,duty);
+PWMGenEnable(PWM1_BASE, PWM_GEN_2);
+PWMOutputState(PWM1_BASE, PWM_OUT_5_BIT, true);
+
+
+
+
+//-------------------KHOI TAO VONG LAP VO HAN---------------//
+while (1)
+{
+PWMPulseWidthSet(PWM1_BASE, PWM_OUT_5, duty);
+if(count_adc == 1000) // TAN SO LAY MAU ADC = 40kHz
+{
+ADC(); // GOI HAM ADC
+SysCtlDelay(80000000 / 12);
+//discrete(); // GOI HAM DISCRETE
+count_adc = 0;
+}
+if(count_mppt == 1000000) // TAN SO LAY MAU MPPT 2HZ
+{
+      if (PV_pwr[0] >= 10) // DIEU KIEN CON SUAT DUOC SET
+     {
+	  MPPT();// GOI HAM MPPT
+     }
+PV_pwr[1] = PV_pwr[0];
+meas_voltage[1] = meas_voltage[0];
+count_mppt = 0;
+}
+count_adc++;
+count_mppt++;
+}
+}
+//==================== KET THUC HAM MAIN =============================//
+
+
+
+//--------------------HAM NGOAI--------------------------------//
+void ADC(void)
+{
+	ADCIntClear(ADC0_BASE, 1);
+	ADCProcessorTrigger(ADC0_BASE, 1);
+	while(!ADCIntStatus(ADC0_BASE, 1, false));
+	{}
+	ADCIntClear(ADC1_BASE, 1);
+	ADCProcessorTrigger(ADC1_BASE, 1);
+	while(!ADCIntStatus(ADC1_BASE, 1, false));
+    {}
+
+// DOC GIA TRI VPV TU CHAN PE3, TINH TOAN VPV
+    ADCSequenceDataGet(ADC0_BASE, 1, ui32ADC0Value);
+    //CH0data=(ui32ADC0Value[0]+ui32ADC0Value[1]+ui32ADC0Value[2]+ui32ADC0Value[3]+ui32ADC0Value[4]+ui32ADC0Value[5]+ui32ADC0Value[6]+ui32ADC0Value[7])/8;
+    meas_voltage[0] =(5/4095)*(ui32ADC0Value[0]);
+
+//  DOC GIA TRI IPV TU CHAN PE1, TINH TOAN IPV
+    ADCSequenceDataGet(ADC1_BASE, 1, ui32ADC1Value);
+   // CH2data=(ui32ADC1Value[0]+ui32ADC1Value[0]+ui32ADC1Value[1]+ui32ADC1Value[2]+ui32ADC1Value[3]+ui32ADC1Value[4]+ui32ADC1Value[5]+ui32ADC1Value[6]+ui32ADC1Value[7])/8;
+    meas_crnt= ui32ADC1Value[0]*(3.3/4095);
+    PV_pwr[0] = meas_voltage[0]*meas_crnt; // POWER
+
+}
+void MPPT(void)
+{
+
+if((PV_pwr[0] - PV_pwr[1]) == 0)
+{}
+else
+{
+if((PV_pwr[0] - PV_pwr[1]) > 0)
+{
+	if((meas_voltage[0] - meas_voltage[1]) > 0)
+       { duty = duty - 0.3; }
+    else
+    { duty = duty + 0.3;}
+}
+else
+{
+	if((meas_voltage[0] - meas_voltage[1]) > 0)
+     { duty = duty + 0.3; }
+   else
+     { duty = duty - 0.3; }
+}
+}
+if(duty < 30)
+{
+duty = 30;
+}
+if(duty > 90)
+{
+duty = 90;
+}
+}
+
+
+
+
+
+
+
+
+
+
+

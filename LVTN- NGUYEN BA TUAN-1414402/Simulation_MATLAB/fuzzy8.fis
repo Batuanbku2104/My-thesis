@@ -1,0 +1,43 @@
+[System]
+Name='fuzzy8'
+Type='mamdani'
+Version=2.0
+NumInputs=1
+NumOutputs=1
+NumRules=6
+AndMethod='min'
+OrMethod='max'
+ImpMethod='min'
+AggMethod='max'
+DefuzzMethod='centroid'
+
+[Input1]
+Name='input1'
+Range=[0 1]
+NumMFs=6
+MF1='mf1':'trimf',[0 0 0.2]
+MF2='mf2':'trimf',[0.1 0.2 0.4]
+MF3='mf3':'trimf',[0.3 0.4 0.6]
+MF4='mf4':'trimf',[0.5 0.6 0.8]
+MF5='mf5':'trimf',[0.7 0.9 1]
+MF6='mf6':'trimf',[0.9 1 1]
+
+[Output1]
+Name='output1'
+Range=[0 0.005]
+NumMFs=7
+MF1='mf1':'trimf',[0.0003 0.0004 0.0005]
+MF2='mf5':'trimf',[0.0007 0.0008 0.0009]
+MF3='mf4':'trimf',[0.0005 0.0006 0.0007]
+MF4='mf1':'trimf',[0 0 0.0002]
+MF5='mf2':'trimf',[0.0001 0.0002 0.0004]
+MF6='mf3':'trimf',[0.0004 0.0005 0.0006]
+MF7='mf6':'trimf',[0.0008 0.0009 0.001]
+
+[Rules]
+1, 1 (1) : 1
+2, 5 (1) : 1
+3, 6 (1) : 1
+4, 3 (1) : 1
+5, 2 (1) : 1
+6, 7 (1) : 1
